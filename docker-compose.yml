@@ -1,0 +1,35 @@
+version: "3.9"
+services:
+  user-service:
+    build: ./user-service
+    container_name: user-service
+    depends_on:
+      - user-db
+    ports:
+      - "8081:8080"        # map container port 8080 to host 8081
+    environment:
+      PORT: "8080"
+      DB_DSN: "postgres://postgres:postgres@user-db:5432/users?sslmode=disable"
+    networks:
+      - blognet
+
+  user-db:
+    image: postgres:15-alpine
+    container_name: user-db
+    environment:
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "postgres"
+      POSTGRES_DB: "users"
+    ports:
+      - "5432:5432"        # expose DB to host (optional, for pgAdmin or psql)
+    volumes:
+      - user_db_data:/var/lib/postgresql/data
+    networks:
+      - blognet
+
+networks:
+  blognet:
+    driver: bridge
+
+volumes:
+  user_db_data:

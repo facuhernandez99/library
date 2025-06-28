@@ -1,0 +1,32 @@
+# Blog Microservice Configuration
+
+# Server Configuration
+PORT=8080
+
+# Database Configuration (Required)
+# Format: postgres://username:password@host:port/database
+DATABASE_URL=postgres://user:password@localhost:5432/blog_db
+
+# Authentication Configuration (Required)
+# Must be at least 32 characters long for security
+JWT_SECRET=your-super-secret-jwt-key-that-should-be-at-least-32-characters-long
+
+# Environment Configuration
+# Valid values: development, staging, production
+ENVIRONMENT=development
+
+# Logging Configuration
+# Valid values: debug, info, warn, error
+LOG_LEVEL=info
+
+# Redis Configuration (Optional)
+# Used for caching and session storage
+REDIS_URL=redis://localhost:6379
+
+# Example Production Configuration:
+# PORT=8080
+# DATABASE_URL=postgres://bloguser:securepassword@prod-db:5432/blog_production
+# JWT_SECRET=a-very-secure-random-string-for-production-use-minimum-32-chars
+# ENVIRONMENT=production
+# LOG_LEVEL=warn
+# REDIS_URL=redis://prod-redis:6379 
