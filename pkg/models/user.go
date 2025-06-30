@@ -1,6 +1,8 @@
 package models
 
-import "time"
+import (
+	"time"
+)
 
 // User represents a user in the system.
 type User struct {
@@ -13,7 +15,7 @@ type User struct {
 
 // UserCreateRequest represents the data needed to create a user.
 type UserCreateRequest struct {
-	Username string `json:"username" binding:"required,min=3,max=50,alphanum"`
+	Username string `json:"username" binding:"required,alphanum,min=3,max=50"`
 	Password string `json:"password" binding:"required,min=8,max=100"`
 }
 

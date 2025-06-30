@@ -26,6 +26,36 @@ type DatabaseTestHelper struct {
 	t              *testing.T
 }
 
+// IsPostgreSQLAvailable checks if PostgreSQL is available for testing
+func IsPostgreSQLAvailable() bool {
+	// Check if we should skip database tests
+	if skip := os.Getenv("SKIP_DB_TESTS"); skip == "true" || skip == "1" {
+		return false
+	}
+
+	config := getTestDatabaseConfig()
+
+	// Try to connect to the master database
+	db, err := database.ConnectWithConfig(config)
+	if err != nil {
+		return false
+	}
+	defer db.Close()
+
+	// Try a simple ping
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	return db.HealthCheck(ctx) == nil
+}
+
+// SkipIfPostgreSQLUnavailable skips the test if PostgreSQL is not available
+func SkipIfPostgreSQLUnavailable(t *testing.T) {
+	if !IsPostgreSQLAvailable() {
+		t.Skip("Skipping test: PostgreSQL is not available. Set SKIP_DB_TESTS=false and ensure PostgreSQL is running.")
+	}
+}
+
 // NewDatabaseTestHelper creates a new database test helper
 func NewDatabaseTestHelper(t *testing.T) *DatabaseTestHelper {
 	config := getTestDatabaseConfig()
@@ -38,8 +68,12 @@ func NewDatabaseTestHelper(t *testing.T) *DatabaseTestHelper {
 	}
 
 	// Generate unique test database name
+	// Sanitize test name by replacing invalid characters
+	sanitizedName := strings.ReplaceAll(strings.ToLower(t.Name()), "/", "_")
+	sanitizedName = strings.ReplaceAll(sanitizedName, " ", "_")
+	sanitizedName = strings.ReplaceAll(sanitizedName, "-", "_")
 	helper.TestDBName = fmt.Sprintf("test_%s_%d_%d",
-		strings.ToLower(t.Name()),
+		sanitizedName,
 		time.Now().Unix(),
 		rand.Intn(10000))
 
@@ -48,11 +82,14 @@ func NewDatabaseTestHelper(t *testing.T) *DatabaseTestHelper {
 
 // Setup creates a test database and establishes connection
 func (h *DatabaseTestHelper) Setup() {
+	// Check if PostgreSQL is available
+	SkipIfPostgreSQLUnavailable(h.t)
+
 	// Connect to master database to create test database
 	masterConfig := *h.Config
 	masterConfig.Database = h.MasterDBName
 
-	masterDB, err := database.Connect(&masterConfig)
+	masterDB, err := database.ConnectWithConfig(&masterConfig)
 	require.NoError(h.t, err, "Failed to connect to master database")
 	defer masterDB.Close()
 
@@ -62,7 +99,7 @@ func (h *DatabaseTestHelper) Setup() {
 
 	// Connect to test database
 	h.Config.Database = h.TestDBName
-	dbWrapper, err := database.Connect(h.Config)
+	dbWrapper, err := database.ConnectWithConfig(h.Config)
 	require.NoError(h.t, err, "Failed to connect to test database")
 	h.DB = dbWrapper.DB
 	require.NoError(h.t, err, "Failed to connect to test database")
@@ -81,7 +118,7 @@ func (h *DatabaseTestHelper) Teardown() {
 	masterConfig := *h.Config
 	masterConfig.Database = h.MasterDBName
 
-	masterDB, err := database.Connect(&masterConfig)
+	masterDB, err := database.ConnectWithConfig(&masterConfig)
 	if err != nil {
 		h.t.Logf("Failed to connect to master database for cleanup: %v", err)
 		return

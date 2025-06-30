@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/facuhernandez99/blog/pkg/config"
 	"github.com/facuhernandez99/blog/pkg/errors"
 	_ "github.com/lib/pq" // PostgreSQL driver
 )
@@ -54,8 +55,23 @@ type DB struct {
 	config *Config
 }
 
-// Connect establishes a connection to the database
-func Connect(config *Config) (*DB, error) {
+// Connect establishes a connection to the database using shared config
+func Connect(appConfig *config.Config) (*DB, error) {
+	if appConfig == nil {
+		return nil, errors.New(errors.ErrCodeValidation, "Application config is required")
+	}
+
+	// Use the DATABASE_URL from the shared config
+	dsn := appConfig.DatabaseURL
+	if dsn == "" {
+		return nil, errors.New(errors.ErrCodeValidation, "DATABASE_URL is required in configuration")
+	}
+
+	return ConnectWithDSN(dsn)
+}
+
+// ConnectWithConfig establishes a connection using the legacy Config struct for backward compatibility
+func ConnectWithConfig(config *Config) (*DB, error) {
 	if config == nil {
 		config = DefaultConfig()
 	}

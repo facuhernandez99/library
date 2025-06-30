@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/facuhernandez99/blog/pkg/logging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -227,6 +228,15 @@ func CORSMiddleware(config *CORSConfig) gin.HandlerFunc {
 
 // isOriginAllowed checks if an origin is in the allowed list
 func isOriginAllowed(origin string, allowedOrigins []string) bool {
+	// Extract hostname from the full origin URL (e.g., "https://api.example.com" -> "api.example.com")
+	hostname := origin
+	if strings.Contains(origin, "://") {
+		parts := strings.Split(origin, "://")
+		if len(parts) > 1 {
+			hostname = parts[1]
+		}
+	}
+
 	for _, allowed := range allowedOrigins {
 		if allowed == "*" || allowed == origin {
 			return true
@@ -234,7 +244,9 @@ func isOriginAllowed(origin string, allowedOrigins []string) bool {
 		// Support wildcard subdomains (e.g., *.example.com)
 		if strings.HasPrefix(allowed, "*.") {
 			domain := strings.TrimPrefix(allowed, "*.")
-			if strings.HasSuffix(origin, "."+domain) || origin == domain {
+			// Check both the full origin and the hostname for wildcard matches
+			if strings.HasSuffix(hostname, "."+domain) || hostname == domain ||
+				strings.HasSuffix(origin, "."+domain) || origin == domain {
 				return true
 			}
 		}
@@ -275,10 +287,16 @@ func TimeoutMiddleware(timeout time.Duration) gin.HandlerFunc {
 
 		c.Request = c.Request.WithContext(ctx)
 
-		finished := make(chan struct{})
+		// Use a buffered channel to avoid goroutine leaks
+		done := make(chan bool, 1)
+
 		go func() {
-			defer close(finished)
 			c.Next()
+			select {
+			case done <- true:
+			default:
+				// Channel already closed or filled, request timed out
+			}
 		}()
 
 		select {
@@ -286,46 +304,110 @@ func TimeoutMiddleware(timeout time.Duration) gin.HandlerFunc {
 			if ctx.Err() == context.DeadlineExceeded {
 				RespondWithError(c, http.StatusRequestTimeout, "Request timeout")
 				c.Abort()
+				return
 			}
-		case <-finished:
+		case <-done:
+			// Request completed normally
+			return
 		}
 	})
 }
 
-// LoggingMiddleware adds request logging with request ID correlation
+// LoggingMiddleware adds request logging with structured logging
+// Deprecated: Use logging.HTTPLoggingMiddleware for enhanced structured logging
 func LoggingMiddleware() gin.HandlerFunc {
+	logger := logging.GetDefault()
 	return gin.HandlerFunc(func(c *gin.Context) {
 		start := time.Now()
 		path := c.Request.URL.Path
 		raw := c.Request.URL.RawQuery
 
+		// Extract request ID and user ID for context
+		requestID := GetRequestID(c)
+		userID := ""
+		if uid, exists := c.Get("user_id"); exists {
+			if id, ok := uid.(string); ok {
+				userID = id
+			}
+		}
+
+		// Create enriched context
+		ctx := logging.WithRequestAndUserID(c.Request.Context(), requestID, userID)
+		c.Request = c.Request.WithContext(ctx)
+
 		// Process request
 		c.Next()
 
-		// Log request details
+		// Log request details with structured logging
 		latency := time.Since(start)
 		clientIP := c.ClientIP()
 		method := c.Request.Method
 		statusCode := c.Writer.Status()
-		requestID := GetRequestID(c)
 
 		if raw != "" {
 			path = path + "?" + raw
 		}
 
-		// Format: [RequestID] ClientIP - Method Path Status Latency
-		fmt.Printf("[%s] %s - %s %s %d %v\n",
-			requestID, clientIP, method, path, statusCode, latency)
+		fields := map[string]interface{}{
+			"method":      method,
+			"path":        path,
+			"status_code": statusCode,
+			"latency_ms":  float64(latency.Nanoseconds()) / 1e6,
+			"client_ip":   clientIP,
+			"user_agent":  c.Request.UserAgent(),
+		}
+
+		message := fmt.Sprintf("%s %s %d %v", method, path, statusCode, latency)
+
+		// Log with appropriate level based on status code
+		if statusCode >= 500 {
+			logger.WithFields(fields).Error(ctx, message, nil)
+		} else if statusCode >= 400 {
+			logger.WithFields(fields).Warn(ctx, message)
+		} else {
+			logger.WithFields(fields).Info(ctx, message)
+		}
 	})
 }
 
-// RecoveryMiddleware provides panic recovery with request ID correlation
+// StructuredLoggingMiddleware provides enhanced structured logging with full configuration
+func StructuredLoggingMiddleware(config *logging.HTTPLoggingConfig) gin.HandlerFunc {
+	return logging.HTTPLoggingMiddleware(config)
+}
+
+// DefaultStructuredLoggingMiddleware provides structured logging with default configuration
+func DefaultStructuredLoggingMiddleware() gin.HandlerFunc {
+	return logging.HTTPLoggingMiddleware(nil)
+}
+
+// RecoveryMiddleware provides panic recovery with structured logging
 func RecoveryMiddleware() gin.HandlerFunc {
+	logger := logging.GetDefault()
 	return gin.HandlerFunc(func(c *gin.Context) {
 		defer func() {
 			if err := recover(); err != nil {
 				requestID := GetRequestID(c)
-				fmt.Printf("[%s] PANIC: %v\n", requestID, err)
+
+				// Create context with request ID for logging
+				ctx := logging.WithRequestAndUserID(c.Request.Context(), requestID, "")
+
+				// Create error from panic value
+				var panicErr error
+				if e, ok := err.(error); ok {
+					panicErr = e
+				} else {
+					panicErr = fmt.Errorf("panic: %v", err)
+				}
+
+				fields := map[string]interface{}{
+					"method":      c.Request.Method,
+					"path":        c.Request.URL.Path,
+					"client_ip":   c.ClientIP(),
+					"user_agent":  c.Request.UserAgent(),
+					"panic_value": err,
+				}
+
+				logger.WithFields(fields).Error(ctx, "Request panic recovered", panicErr)
 				RespondWithInternalError(c, "Internal server error occurred")
 				c.Abort()
 			}

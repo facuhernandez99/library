@@ -1,10 +1,12 @@
 package http
 
 import (
+	"bytes"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/facuhernandez99/blog/pkg/logging"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 )
@@ -278,36 +280,226 @@ func TestTimeoutMiddleware(t *testing.T) {
 func TestLoggingMiddleware(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	router := gin.New()
-	router.Use(RequestIDMiddleware())
-	router.Use(LoggingMiddleware())
-	router.GET("/test", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "ok"})
+	t.Run("logs request with structured logging", func(t *testing.T) {
+		// Capture log output
+		var logBuffer bytes.Buffer
+		logger := logging.NewLogger(&logging.Config{
+			Level:      logging.LevelInfo,
+			Output:     &logBuffer,
+			Service:    "test-service",
+			Version:    "1.0.0",
+			Production: false,
+		})
+		logging.SetDefault(logger)
+
+		router := gin.New()
+		router.Use(RequestIDMiddleware())
+		router.Use(LoggingMiddleware())
+		router.GET("/test", func(c *gin.Context) {
+			c.JSON(200, gin.H{"status": "ok"})
+		})
+
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", "/test", nil)
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, 200, w.Code)
+
+		// Check that structured logging was used
+		logOutput := logBuffer.String()
+		assert.Contains(t, logOutput, "GET")
+		assert.Contains(t, logOutput, "/test")
+		assert.Contains(t, logOutput, "200")
+		assert.Contains(t, logOutput, "status_code")
+		assert.Contains(t, logOutput, "latency_ms")
 	})
 
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/test", nil)
-	router.ServeHTTP(w, req)
+	t.Run("logs different levels based on status code", func(t *testing.T) {
+		var logBuffer bytes.Buffer
+		logger := logging.NewLogger(&logging.Config{
+			Level:      logging.LevelInfo,
+			Output:     &logBuffer,
+			Service:    "test-service",
+			Version:    "1.0.0",
+			Production: false,
+		})
+		logging.SetDefault(logger)
 
-	assert.Equal(t, 200, w.Code)
-	// Note: In a real test, you would capture stdout to verify logging output
+		router := gin.New()
+		router.Use(RequestIDMiddleware())
+		router.Use(LoggingMiddleware())
+		router.GET("/error", func(c *gin.Context) {
+			c.JSON(500, gin.H{"error": "server error"})
+		})
+
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", "/error", nil)
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, 500, w.Code)
+
+		logOutput := logBuffer.String()
+		assert.Contains(t, logOutput, "ERROR")
+		assert.Contains(t, logOutput, "500")
+	})
+
+	t.Run("includes user context when available", func(t *testing.T) {
+		var logBuffer bytes.Buffer
+		logger := logging.NewLogger(&logging.Config{
+			Level:      logging.LevelInfo,
+			Output:     &logBuffer,
+			Service:    "test-service",
+			Version:    "1.0.0",
+			Production: false,
+		})
+		logging.SetDefault(logger)
+
+		router := gin.New()
+		router.Use(RequestIDMiddleware())
+		router.Use(func(c *gin.Context) {
+			c.Set("user_id", "123")
+			c.Next()
+		})
+		router.Use(LoggingMiddleware())
+		router.GET("/test", func(c *gin.Context) {
+			c.JSON(200, gin.H{"status": "ok"})
+		})
+
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", "/test", nil)
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, 200, w.Code)
+
+		logOutput := logBuffer.String()
+		assert.Contains(t, logOutput, "user_id")
+		assert.Contains(t, logOutput, "123")
+	})
+}
+
+func TestStructuredLoggingMiddleware(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	t.Run("uses enhanced structured logging", func(t *testing.T) {
+		var logBuffer bytes.Buffer
+		logger := logging.NewLogger(&logging.Config{
+			Level:      logging.LevelInfo,
+			Output:     &logBuffer,
+			Service:    "test-service",
+			Version:    "1.0.0",
+			Production: false,
+		})
+
+		config := &logging.HTTPLoggingConfig{
+			Logger:          logger,
+			SkipPaths:       []string{},
+			LogRequestBody:  true,
+			LogResponseBody: true,
+			MaxBodySize:     1024,
+		}
+
+		router := gin.New()
+		router.Use(RequestIDMiddleware())
+		router.Use(StructuredLoggingMiddleware(config))
+		router.POST("/test", func(c *gin.Context) {
+			c.JSON(200, gin.H{"status": "ok"})
+		})
+
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/test", bytes.NewBufferString(`{"test": "data"}`))
+		req.Header.Set("Content-Type", "application/json")
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, 200, w.Code)
+
+		logOutput := logBuffer.String()
+		assert.Contains(t, logOutput, "POST")
+		assert.Contains(t, logOutput, "/test")
+		assert.Contains(t, logOutput, "200")
+	})
+
+	t.Run("uses default configuration when nil", func(t *testing.T) {
+		router := gin.New()
+		router.Use(RequestIDMiddleware())
+		router.Use(DefaultStructuredLoggingMiddleware())
+		router.GET("/test", func(c *gin.Context) {
+			c.JSON(200, gin.H{"status": "ok"})
+		})
+
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", "/test", nil)
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, 200, w.Code)
+	})
 }
 
 func TestRecoveryMiddleware(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	router := gin.New()
-	router.Use(RequestIDMiddleware())
-	router.Use(RecoveryMiddleware())
-	router.GET("/panic", func(c *gin.Context) {
-		panic("test panic")
+	t.Run("recovers from panic with structured logging", func(t *testing.T) {
+		var logBuffer bytes.Buffer
+		logger := logging.NewLogger(&logging.Config{
+			Level:      logging.LevelInfo,
+			Output:     &logBuffer,
+			Service:    "test-service",
+			Version:    "1.0.0",
+			Production: false,
+		})
+		logging.SetDefault(logger)
+
+		router := gin.New()
+		router.Use(RequestIDMiddleware())
+		router.Use(RecoveryMiddleware())
+		router.GET("/panic", func(c *gin.Context) {
+			panic("test panic")
+		})
+
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", "/panic", nil)
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, 500, w.Code)
+
+		logOutput := logBuffer.String()
+		assert.Contains(t, logOutput, "ERROR")
+		assert.Contains(t, logOutput, "Request panic recovered")
+		assert.Contains(t, logOutput, "test panic")
+		assert.Contains(t, logOutput, "client_ip")
+		assert.Contains(t, logOutput, "method")
 	})
 
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/panic", nil)
-	router.ServeHTTP(w, req)
+	t.Run("includes request context in panic logs", func(t *testing.T) {
+		var logBuffer bytes.Buffer
+		logger := logging.NewLogger(&logging.Config{
+			Level:      logging.LevelInfo,
+			Output:     &logBuffer,
+			Service:    "test-service",
+			Version:    "1.0.0",
+			Production: false,
+		})
+		logging.SetDefault(logger)
 
-	assert.Equal(t, 500, w.Code)
+		router := gin.New()
+		router.Use(RequestIDMiddleware())
+		router.Use(RecoveryMiddleware())
+		router.POST("/panic", func(c *gin.Context) {
+			panic("test panic with context")
+		})
+
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/panic", nil)
+		req.Header.Set("User-Agent", "test-agent")
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, 500, w.Code)
+
+		logOutput := logBuffer.String()
+		assert.Contains(t, logOutput, "POST")
+		assert.Contains(t, logOutput, "/panic")
+		assert.Contains(t, logOutput, "test-agent")
+		assert.Contains(t, logOutput, "panic_value")
+	})
 }
 
 func TestGetRequestID(t *testing.T) {

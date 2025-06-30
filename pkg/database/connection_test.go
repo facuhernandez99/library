@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/facuhernandez99/blog/pkg/config"
 	"github.com/facuhernandez99/blog/pkg/errors"
 )
 
@@ -214,6 +215,89 @@ func TestConfig(t *testing.T) {
 }
 
 func TestConnect(t *testing.T) {
+	t.Run("valid_app_configuration", func(t *testing.T) {
+		appConfig := &config.Config{
+			Port:        8080,
+			DatabaseURL: "host=localhost port=5432 user=test password=test dbname=test sslmode=disable",
+			JWTSecret:   "test-secret-32-characters-long-minimum",
+			Environment: "development",
+			LogLevel:    "info",
+			RedisURL:    "redis://localhost:6379",
+		}
+
+		// Test that we can extract database configuration
+		if appConfig.DatabaseURL == "" {
+			t.Error("DatabaseURL should not be empty")
+		}
+
+		// Test DSN format validation
+		expectedDSN := "host=localhost port=5432 user=test password=test dbname=test sslmode=disable"
+		if appConfig.DatabaseURL != expectedDSN {
+			t.Logf("DatabaseURL format: %s", appConfig.DatabaseURL)
+		}
+	})
+
+	t.Run("nil_app_configuration", func(t *testing.T) {
+		// Test with nil config - should return validation error
+		_, err := Connect(nil)
+		if err == nil {
+			t.Error("Connect should return error with nil config")
+		}
+
+		// Verify it's a validation error
+		if appErr, ok := errors.IsAppError(err); ok {
+			if appErr.Code != errors.ErrCodeValidation {
+				t.Errorf("Expected validation error, got %s", appErr.Code)
+			}
+		} else {
+			t.Error("Expected AppError for nil config")
+		}
+	})
+
+	t.Run("empty_database_url", func(t *testing.T) {
+		appConfig := &config.Config{
+			Port:        8080,
+			DatabaseURL: "", // Empty database URL
+			JWTSecret:   "test-secret-32-characters-long-minimum",
+			Environment: "development",
+			LogLevel:    "info",
+			RedisURL:    "redis://localhost:6379",
+		}
+
+		_, err := Connect(appConfig)
+		if err == nil {
+			t.Error("Connect should return error with empty DatabaseURL")
+		}
+
+		// Verify it's a validation error
+		if appErr, ok := errors.IsAppError(err); ok {
+			if appErr.Code != errors.ErrCodeValidation {
+				t.Errorf("Expected validation error, got %s", appErr.Code)
+			}
+		} else {
+			t.Error("Expected AppError for empty DatabaseURL")
+		}
+	})
+
+	t.Run("invalid_database_url", func(t *testing.T) {
+		appConfig := &config.Config{
+			Port:        8080,
+			DatabaseURL: "invalid-database-url",
+			JWTSecret:   "test-secret-32-characters-long-minimum",
+			Environment: "development",
+			LogLevel:    "info",
+			RedisURL:    "redis://localhost:6379",
+		}
+
+		// The Connect function should still attempt to connect (it will fail at connection time)
+		// This tests that the configuration validation passes but connection might fail
+		if appConfig.DatabaseURL != "invalid-database-url" {
+			t.Error("DatabaseURL should be preserved as provided")
+		}
+	})
+}
+
+func TestConnectWithConfig(t *testing.T) {
 	// Register mock drivers for different test scenarios
 	sql.Register("postgres-mock-success", &mockDriver{shouldFail: false})
 	sql.Register("postgres-mock-fail", &mockDriver{shouldFail: true})

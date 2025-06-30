@@ -1,6 +1,7 @@
 package http
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -9,7 +10,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/facuhernandez99/blog/pkg/auth"
+	"github.com/facuhernandez99/blog/pkg/logging"
 	"github.com/facuhernandez99/blog/pkg/models"
+	"github.com/stretchr/testify/assert"
 )
 
 // Test data structures
@@ -703,4 +707,410 @@ func TestClient_ContextCancellation(t *testing.T) {
 	if !strings.Contains(err.Error(), "context") {
 		t.Errorf("Expected context-related error, got: %v", err)
 	}
+}
+
+func TestNewClient_WithAuthentication(t *testing.T) {
+	authConfig := &AuthConfig{
+		JWTSecret:    "test-secret",
+		ServiceToken: "test-token",
+		AutoRefresh:  true,
+	}
+
+	config := &ClientConfig{
+		BaseURL:    "http://localhost:8080",
+		AuthConfig: authConfig,
+	}
+
+	client := NewClient(config)
+
+	if client == nil {
+		t.Fatal("NewClient returned nil")
+	}
+
+	// Check that auth token is set
+	if authHeader, exists := client.defaultHeaders["Authorization"]; !exists || authHeader != "Bearer test-token" {
+		t.Errorf("Expected Authorization header 'Bearer test-token', got '%s'", authHeader)
+	}
+
+	// Check that auth config is stored
+	if client.authConfig != authConfig {
+		t.Error("AuthConfig was not properly stored")
+	}
+}
+
+func TestClient_SetServiceAuthentication(t *testing.T) {
+	client := NewClient(nil)
+
+	authConfig := &AuthConfig{
+		JWTSecret:    "test-secret",
+		ServiceToken: "new-token",
+		AutoRefresh:  false,
+	}
+
+	client.SetServiceAuthentication(authConfig)
+
+	if client.authConfig != authConfig {
+		t.Error("AuthConfig was not properly set")
+	}
+
+	if authHeader, exists := client.defaultHeaders["Authorization"]; !exists || authHeader != "Bearer new-token" {
+		t.Errorf("Expected Authorization header 'Bearer new-token', got '%s'", authHeader)
+	}
+}
+
+func TestClient_ValidateAuthToken(t *testing.T) {
+	// Create a valid JWT token for testing
+	user := &models.User{
+		ID:       1,
+		Username: "testuser",
+	}
+	secret := "test-secret"
+
+	tokenResponse, err := auth.GenerateJWT(user, secret, 1) // 1 hour expiration
+	if err != nil {
+		t.Fatalf("Failed to generate test token: %v", err)
+	}
+
+	tests := []struct {
+		name          string
+		authConfig    *AuthConfig
+		expectedError bool
+		errorContains string
+	}{
+		{
+			name:          "No auth config",
+			authConfig:    nil,
+			expectedError: true,
+			errorContains: "Authentication not configured",
+		},
+		{
+			name: "Missing JWT secret",
+			authConfig: &AuthConfig{
+				ServiceToken: tokenResponse.Token,
+				JWTSecret:    "",
+			},
+			expectedError: true,
+			errorContains: "Authentication not configured",
+		},
+		{
+			name: "Valid token",
+			authConfig: &AuthConfig{
+				ServiceToken: tokenResponse.Token,
+				JWTSecret:    secret,
+				AutoRefresh:  false,
+			},
+			expectedError: false,
+		},
+		{
+			name: "Invalid token",
+			authConfig: &AuthConfig{
+				ServiceToken: "invalid-token",
+				JWTSecret:    secret,
+				AutoRefresh:  false,
+			},
+			expectedError: true,
+			errorContains: "Service authentication token is invalid",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var logBuffer bytes.Buffer
+			logger := logging.NewLogger(&logging.Config{
+				Level:      logging.LevelInfo,
+				Output:     &logBuffer,
+				Service:    "test-client",
+				Production: false,
+			})
+
+			client := NewClient(&ClientConfig{
+				Logger:     logger,
+				AuthConfig: tt.authConfig,
+			})
+
+			ctx := context.Background()
+			err := client.ValidateAuthToken(ctx)
+
+			if tt.expectedError {
+				if err == nil {
+					t.Error("Expected error but got none")
+				} else if !strings.Contains(err.Error(), tt.errorContains) {
+					t.Errorf("Expected error to contain '%s', got '%s'", tt.errorContains, err.Error())
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Expected no error but got: %v", err)
+				}
+			}
+		})
+	}
+}
+
+func TestClient_RefreshAuthToken(t *testing.T) {
+	// Create test tokens
+	user := &models.User{
+		ID:       1,
+		Username: "testuser",
+	}
+	secret := "test-secret"
+
+	// Generate refresh token
+	refreshToken, err := auth.GenerateRefreshToken(user, secret)
+	if err != nil {
+		t.Fatalf("Failed to generate refresh token: %v", err)
+	}
+
+	tests := []struct {
+		name          string
+		authConfig    *AuthConfig
+		expectedError bool
+		errorContains string
+	}{
+		{
+			name: "No auto refresh",
+			authConfig: &AuthConfig{
+				AutoRefresh: false,
+			},
+			expectedError: true,
+			errorContains: "Authentication not configured for refresh",
+		},
+		{
+			name: "Missing refresh token",
+			authConfig: &AuthConfig{
+				AutoRefresh:  true,
+				JWTSecret:    secret,
+				RefreshToken: "",
+			},
+			expectedError: true,
+			errorContains: "Refresh token or JWT secret not configured",
+		},
+		{
+			name: "Valid refresh",
+			authConfig: &AuthConfig{
+				AutoRefresh:  true,
+				JWTSecret:    secret,
+				RefreshToken: refreshToken,
+			},
+			expectedError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var logBuffer bytes.Buffer
+			logger := logging.NewLogger(&logging.Config{
+				Level:      logging.LevelInfo,
+				Output:     &logBuffer,
+				Service:    "test-client",
+				Production: false,
+			})
+
+			client := NewClient(&ClientConfig{
+				Logger:     logger,
+				AuthConfig: tt.authConfig,
+			})
+
+			ctx := context.Background()
+			err := client.RefreshAuthToken(ctx)
+
+			if tt.expectedError {
+				if err == nil {
+					t.Error("Expected error but got none")
+				} else if !strings.Contains(err.Error(), tt.errorContains) {
+					t.Errorf("Expected error to contain '%s', got '%s'", tt.errorContains, err.Error())
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Expected no error but got: %v", err)
+				}
+
+				// Check that the token was updated
+				if client.authConfig.ServiceToken == "" {
+					t.Error("Service token was not updated after refresh")
+				}
+
+				// Check that Authorization header was updated
+				if authHeader := client.defaultHeaders["Authorization"]; !strings.HasPrefix(authHeader, "Bearer ") {
+					t.Error("Authorization header was not updated after refresh")
+				}
+			}
+		})
+	}
+}
+
+func TestClient_DoWithAuthentication(t *testing.T) {
+	user := &models.User{
+		ID:       1,
+		Username: "testuser",
+	}
+	secret := "test-secret"
+
+	// Generate a valid token
+	tokenResponse, err := auth.GenerateJWT(user, secret, 1)
+	if err != nil {
+		t.Fatalf("Failed to generate test token: %v", err)
+	}
+
+	// Create test server that validates authentication
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(models.APIResponse{
+				Success: false,
+				Error:   "Missing authorization header",
+			})
+			return
+		}
+
+		expectedAuth := "Bearer " + tokenResponse.Token
+		if authHeader != expectedAuth {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(models.APIResponse{
+				Success: false,
+				Error:   "Invalid token",
+			})
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(models.APIResponse{
+			Success: true,
+			Data:    map[string]string{"message": "authenticated"},
+		})
+	}))
+	defer server.Close()
+
+	var logBuffer bytes.Buffer
+	logger := logging.NewLogger(&logging.Config{
+		Level:      logging.LevelDebug,
+		Output:     &logBuffer,
+		Service:    "test-client",
+		Production: false,
+	})
+
+	client := NewClient(&ClientConfig{
+		BaseURL: server.URL,
+		Logger:  logger,
+		AuthConfig: &AuthConfig{
+			JWTSecret:    secret,
+			ServiceToken: tokenResponse.Token,
+			AutoRefresh:  false,
+		},
+	})
+
+	ctx := context.Background()
+	response, err := client.Get(ctx, "/test")
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if response.StatusCode != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", response.StatusCode)
+	}
+
+	if !response.Success {
+		t.Error("Expected successful response")
+	}
+
+	// Check that structured logging was used
+	logOutput := logBuffer.String()
+	assert.Contains(t, logOutput, "Starting HTTP request")
+	assert.Contains(t, logOutput, "HTTP request completed")
+	assert.Contains(t, logOutput, server.URL+"/test")
+}
+
+func TestClient_AuthenticationRetryOn401(t *testing.T) {
+	user := &models.User{
+		ID:       1,
+		Username: "testuser",
+	}
+	secret := "test-secret"
+
+	// Generate tokens
+	originalToken, err := auth.GenerateJWT(user, secret, 1)
+	if err != nil {
+		t.Fatalf("Failed to generate original token: %v", err)
+	}
+
+	refreshToken, err := auth.GenerateRefreshToken(user, secret)
+	if err != nil {
+		t.Fatalf("Failed to generate refresh token: %v", err)
+	}
+
+	requestCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+
+		if requestCount == 1 {
+			// First request - return 401 to trigger refresh
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(models.APIResponse{
+				Success: false,
+				Error:   "Token expired",
+			})
+			return
+		}
+
+		// Second request should have new token
+		authHeader := r.Header.Get("Authorization")
+
+		// For testing, accept any bearer token on retry
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(models.APIResponse{
+				Success: true,
+				Data:    map[string]string{"message": "authenticated after retry"},
+			})
+		} else {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(models.APIResponse{
+				Success: false,
+				Error:   "Still invalid token",
+			})
+		}
+	}))
+	defer server.Close()
+
+	var logBuffer bytes.Buffer
+	logger := logging.NewLogger(&logging.Config{
+		Level:      logging.LevelDebug,
+		Output:     &logBuffer,
+		Service:    "test-client",
+		Production: false,
+	})
+
+	client := NewClient(&ClientConfig{
+		BaseURL: server.URL,
+		Logger:  logger,
+		AuthConfig: &AuthConfig{
+			JWTSecret:    secret,
+			ServiceToken: originalToken.Token,
+			RefreshToken: refreshToken,
+			AutoRefresh:  true,
+		},
+	})
+
+	ctx := context.Background()
+	response, err := client.Get(ctx, "/test")
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if response.StatusCode != http.StatusOK {
+		t.Errorf("Expected status 200 after retry, got %d", response.StatusCode)
+	}
+
+	if requestCount != 2 {
+		t.Errorf("Expected 2 requests (original + retry), got %d", requestCount)
+	}
+
+	// Check that retry was logged
+	logOutput := logBuffer.String()
+	assert.Contains(t, logOutput, "Authentication failed, attempting token refresh")
+	assert.Contains(t, logOutput, "Successfully refreshed service authentication token")
 }

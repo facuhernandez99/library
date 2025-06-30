@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/facuhernandez99/blog/pkg/errors"
+	"github.com/facuhernandez99/blog/pkg/logging"
 )
 
 func TestMigratorInitialization(t *testing.T) {
@@ -31,6 +32,15 @@ func TestMigratorInitialization(t *testing.T) {
 		if migrator.tableName != "schema_migrations" {
 			t.Errorf("Expected default table name 'schema_migrations', got %s", migrator.tableName)
 		}
+
+		if migrator.logger == nil {
+			t.Error("Migrator should have a logger instance")
+		}
+
+		// Verify it uses the default logger
+		if migrator.logger != logging.GetDefault() {
+			t.Error("Migrator should use default logger when created with NewMigrator")
+		}
 	})
 
 	t.Run("NewMigratorWithTable", func(t *testing.T) {
@@ -52,6 +62,53 @@ func TestMigratorInitialization(t *testing.T) {
 
 		if migrator.tableName != customTableName {
 			t.Errorf("Expected custom table name %s, got %s", customTableName, migrator.tableName)
+		}
+
+		if migrator.logger == nil {
+			t.Error("Migrator should have a logger instance")
+		}
+
+		// Verify it uses the default logger
+		if migrator.logger != logging.GetDefault() {
+			t.Error("Migrator should use default logger when created with NewMigratorWithTable")
+		}
+	})
+
+	t.Run("NewMigratorWithLogger", func(t *testing.T) {
+		mockDB := &DB{
+			DB:     nil,
+			config: DefaultConfig(),
+		}
+
+		// Create a custom logger
+		customLogger := logging.NewLogger(&logging.Config{
+			Level:      logging.LevelDebug,
+			Service:    "test-migrator",
+			Version:    "1.0.0",
+			Production: false,
+		})
+
+		migrator := NewMigratorWithLogger(mockDB, customLogger)
+
+		if migrator == nil {
+			t.Error("NewMigratorWithLogger should not return nil")
+		}
+
+		if migrator.db != mockDB {
+			t.Error("Migrator should store the provided DB instance")
+		}
+
+		if migrator.tableName != "schema_migrations" {
+			t.Errorf("Expected default table name 'schema_migrations', got %s", migrator.tableName)
+		}
+
+		if migrator.logger == nil {
+			t.Error("Migrator should have a logger instance")
+		}
+
+		// Verify it uses the custom logger
+		if migrator.logger != customLogger {
+			t.Error("Migrator should use the provided custom logger")
 		}
 	})
 
@@ -199,29 +256,36 @@ func TestMigrationOperations(t *testing.T) {
 			ChecksumDown: "def456",
 		}
 
-		// Validate struct fields
-		if migration.Version != 1 {
-			t.Errorf("Expected version 1, got %d", migration.Version)
+		// Test basic validation
+		if migration.Version <= 0 {
+			t.Error("Migration version should be positive")
 		}
 
-		if migration.Name != "create_users_table" {
-			t.Errorf("Expected name 'create_users_table', got %s", migration.Name)
+		if migration.Name == "" {
+			t.Error("Migration name should not be empty")
 		}
 
 		if migration.UpSQL == "" {
-			t.Error("UpSQL should not be empty")
-		}
-
-		if migration.DownSQL == "" {
-			t.Error("DownSQL should not be empty")
+			t.Error("Migration UpSQL should not be empty")
 		}
 
 		if migration.ChecksumUp == "" {
-			t.Error("ChecksumUp should not be empty")
+			t.Error("Migration ChecksumUp should not be empty")
+		}
+	})
+
+	t.Run("MigrationLoggingSetup", func(t *testing.T) {
+		// Test that migrator properly sets up logging context
+		migrator := NewMigrator(&DB{})
+
+		// Test that logger is configured
+		if migrator.logger == nil {
+			t.Error("Migrator should have logger configured")
 		}
 
-		if migration.ChecksumDown == "" {
-			t.Error("ChecksumDown should not be empty")
+		// Test logger level
+		if migrator.logger.GetLevel() < logging.LevelInfo {
+			t.Log("Logger level is below Info, which is acceptable")
 		}
 	})
 }

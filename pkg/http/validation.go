@@ -12,8 +12,8 @@ import (
 
 var (
 	// Common validation patterns
-	alphanumericRegex = regexp.MustCompile(`^[a-zA-Z0-9]+$`)
-	phoneRegex        = regexp.MustCompile(`^\+?[1-9]\d{1,14}$`)
+	alphanumericRegex = regexp.MustCompile(`^[a-zA-Z0-9]*$`)     // Allow empty strings
+	phoneRegex        = regexp.MustCompile(`^\+?[1-9]\d{4,14}$`) // Minimum 5 digits total, max 15
 	urlRegex          = regexp.MustCompile(`^https?://[^\s]+$`)
 	slugRegex         = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 )

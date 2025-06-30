@@ -1,12 +1,14 @@
 package auth
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/facuhernandez99/blog/pkg/logging"
 	"github.com/facuhernandez99/blog/pkg/models"
 	"github.com/gin-gonic/gin"
 )
@@ -14,6 +16,22 @@ import (
 func init() {
 	// Set Gin to test mode
 	gin.SetMode(gin.TestMode)
+
+	// Initialize test logger to capture logs during testing
+	setupTestLogger()
+}
+
+// setupTestLogger initializes a test logger that captures logs in memory
+func setupTestLogger() {
+	logOutput := &bytes.Buffer{}
+	testLogger := logging.NewLogger(&logging.Config{
+		Level:      logging.LevelDebug,
+		Output:     logOutput,
+		Service:    "auth-test",
+		Version:    "test",
+		Production: false,
+	})
+	logging.SetDefault(testLogger)
 }
 
 func TestAuthMiddleware(t *testing.T) {
@@ -931,4 +949,132 @@ func BenchmarkCORSMiddleware(b *testing.B) {
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 	}
+}
+
+// TestAuthMiddlewareWithLogging tests that logging integration doesn't interfere with middleware functionality
+func TestAuthMiddlewareWithLogging(t *testing.T) {
+	// Create a buffer to capture log output
+	logOutput := &bytes.Buffer{}
+	testLogger := logging.NewLogger(&logging.Config{
+		Level:      logging.LevelDebug,
+		Output:     logOutput,
+		Service:    "auth-middleware-test",
+		Version:    "test",
+		Production: false,
+	})
+
+	// Set this as the default logger for this test
+	originalLogger := logging.GetDefault()
+	logging.SetDefault(testLogger)
+	defer logging.SetDefault(originalLogger)
+
+	secret := "test_secret_key_for_logging"
+	testUser := &models.User{
+		ID:       789,
+		Username: "logginguser",
+	}
+
+	// Generate a valid token
+	validTokenResponse, err := GenerateJWT(testUser, secret, 24)
+	if err != nil {
+		t.Fatalf("Failed to generate test token: %v", err)
+	}
+
+	t.Run("SuccessfulAuthenticationGeneratesLogs", func(t *testing.T) {
+		// Clear the log buffer
+		logOutput.Reset()
+
+		// Create router with middleware
+		router := gin.New()
+		router.Use(AuthMiddleware(secret))
+		router.GET("/test", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{"message": "authenticated"})
+		})
+
+		// Create request with valid token
+		req, _ := http.NewRequest("GET", "/test", nil)
+		req.Header.Set("Authorization", "Bearer "+validTokenResponse.Token)
+
+		// Perform request
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		// Verify response is successful
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected status 200, got %d", w.Code)
+		}
+
+		// Verify logs were generated
+		logContents := logOutput.String()
+		if logContents == "" {
+			t.Error("Expected log output from successful authentication")
+		}
+
+		t.Logf("Generated authentication logs: %d characters", len(logContents))
+	})
+
+	t.Run("FailedAuthenticationGeneratesLogs", func(t *testing.T) {
+		// Clear the log buffer
+		logOutput.Reset()
+
+		// Create router with middleware
+		router := gin.New()
+		router.Use(AuthMiddleware(secret))
+		router.GET("/test", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{"message": "should not reach here"})
+		})
+
+		// Create request without token
+		req, _ := http.NewRequest("GET", "/test", nil)
+
+		// Perform request
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		// Verify response is unauthorized
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("Expected status 401, got %d", w.Code)
+		}
+
+		// Verify logs were generated
+		logContents := logOutput.String()
+		if logContents == "" {
+			t.Error("Expected log output from failed authentication")
+		}
+
+		t.Logf("Generated authentication failure logs: %d characters", len(logContents))
+	})
+
+	t.Run("RequireUserIDWithLogging", func(t *testing.T) {
+		// Clear the log buffer
+		logOutput.Reset()
+
+		// Create router with middleware
+		router := gin.New()
+		router.Use(AuthMiddleware(secret))
+		router.Use(RequireUserID("id"))
+		router.GET("/users/:id/profile", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{"message": "user profile"})
+		})
+
+		// Test with matching user ID
+		req, _ := http.NewRequest("GET", "/users/789/profile", nil)
+		req.Header.Set("Authorization", "Bearer "+validTokenResponse.Token)
+
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		// Should succeed
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected status 200, got %d", w.Code)
+		}
+
+		// Verify logs were generated
+		logContents := logOutput.String()
+		if logContents == "" {
+			t.Error("Expected log output from RequireUserID middleware")
+		}
+
+		t.Logf("Generated RequireUserID logs: %d characters", len(logContents))
+	})
 }

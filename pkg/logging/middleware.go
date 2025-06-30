@@ -87,6 +87,20 @@ func HTTPLoggingMiddleware(config *HTTPLoggingConfig) gin.HandlerFunc {
 		config = DefaultHTTPLoggingConfig()
 	}
 
+	// Set defaults for any missing fields
+	if config.Logger == nil {
+		config.Logger = GetDefault()
+	}
+	if config.RequestIDHeader == "" {
+		config.RequestIDHeader = "X-Request-ID"
+	}
+	if config.UserIDExtractor == nil {
+		config.UserIDExtractor = DefaultUserIDExtractor
+	}
+	if config.MaxBodySize == 0 {
+		config.MaxBodySize = 1024 * 1024 // 1MB default
+	}
+
 	return gin.HandlerFunc(func(c *gin.Context) {
 		start := time.Now()
 		path := c.Request.URL.Path
@@ -181,14 +195,22 @@ func HTTPLoggingMiddleware(config *HTTPLoggingConfig) gin.HandlerFunc {
 
 		// Add request body if captured and not empty
 		if config.LogRequestBody && requestBody != "" {
-			fields["request_body"] = config.Logger.sanitizer.sanitizeString(requestBody)
+			if config.Logger.sanitizer != nil {
+				fields["request_body"] = config.Logger.sanitizer.sanitizeString(requestBody)
+			} else {
+				fields["request_body"] = requestBody
+			}
 		}
 
 		// Add response body if captured
 		if config.LogResponseBody && responseWriter != nil {
 			responseBody := responseWriter.body.String()
 			if responseBody != "" {
-				fields["response_body"] = config.Logger.sanitizer.sanitizeString(responseBody)
+				if config.Logger.sanitizer != nil {
+					fields["response_body"] = config.Logger.sanitizer.sanitizeString(responseBody)
+				} else {
+					fields["response_body"] = responseBody
+				}
 			}
 		}
 
@@ -196,8 +218,12 @@ func HTTPLoggingMiddleware(config *HTTPLoggingConfig) gin.HandlerFunc {
 		if len(c.Errors) > 0 {
 			var errorMessages []string
 			for _, err := range c.Errors {
-				sanitizedErr := config.Logger.sanitizer.Sanitize(err.Err)
-				errorMessages = append(errorMessages, sanitizedErr.Error())
+				if config.Logger.sanitizer != nil {
+					sanitizedErr := config.Logger.sanitizer.Sanitize(err.Err)
+					errorMessages = append(errorMessages, sanitizedErr.Error())
+				} else {
+					errorMessages = append(errorMessages, err.Err.Error())
+				}
 			}
 			fields["errors"] = errorMessages
 		}

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/facuhernandez99/blog/pkg/errors"
+	"github.com/facuhernandez99/blog/pkg/logging"
 )
 
 // Migration represents a database migration
@@ -37,6 +38,7 @@ type MigrationFile struct {
 type Migrator struct {
 	db        *DB
 	tableName string
+	logger    *logging.Logger
 }
 
 // NewMigrator creates a new migrator instance
@@ -44,6 +46,7 @@ func NewMigrator(db *DB) *Migrator {
 	return &Migrator{
 		db:        db,
 		tableName: "schema_migrations",
+		logger:    logging.GetDefault(),
 	}
 }
 
@@ -52,11 +55,23 @@ func NewMigratorWithTable(db *DB, tableName string) *Migrator {
 	return &Migrator{
 		db:        db,
 		tableName: tableName,
+		logger:    logging.GetDefault(),
+	}
+}
+
+// NewMigratorWithLogger creates a new migrator instance with custom logger
+func NewMigratorWithLogger(db *DB, logger *logging.Logger) *Migrator {
+	return &Migrator{
+		db:        db,
+		tableName: "schema_migrations",
+		logger:    logger,
 	}
 }
 
 // Initialize creates the migrations table if it doesn't exist
 func (m *Migrator) Initialize(ctx context.Context) error {
+	m.logger.Info(ctx, "Initializing migrations table")
+
 	query := fmt.Sprintf(`
 		CREATE TABLE IF NOT EXISTS %s (
 			version INTEGER PRIMARY KEY,
@@ -69,9 +84,11 @@ func (m *Migrator) Initialize(ctx context.Context) error {
 
 	_, err := m.db.Exec(ctx, query)
 	if err != nil {
+		m.logger.Error(ctx, "Failed to initialize migrations table", err)
 		return errors.Wrap(err, errors.ErrCodeDatabaseError, "Failed to initialize migrations table")
 	}
 
+	m.logger.WithField("table", m.tableName).Info(ctx, "Migrations table initialized successfully")
 	return nil
 }
 
@@ -152,7 +169,14 @@ func (m *Migrator) IsMigrationApplied(ctx context.Context, version int) (bool, e
 
 // ApplyMigration applies a single migration
 func (m *Migrator) ApplyMigration(ctx context.Context, migration *Migration) error {
-	return m.db.WithTransaction(ctx, func(tx *sql.Tx) error {
+	logger := m.logger.WithFields(map[string]interface{}{
+		"migration_version": migration.Version,
+		"migration_name":    migration.Name,
+	})
+
+	logger.Info(ctx, "Applying migration")
+
+	err := m.db.WithTransaction(ctx, func(tx *sql.Tx) error {
 		// Execute the migration SQL
 		_, err := tx.ExecContext(ctx, migration.UpSQL)
 		if err != nil {
@@ -177,15 +201,31 @@ func (m *Migrator) ApplyMigration(ctx context.Context, migration *Migration) err
 
 		return nil
 	})
+
+	if err != nil {
+		logger.Error(ctx, "Failed to apply migration", err)
+		return err
+	}
+
+	logger.Info(ctx, "Migration applied successfully")
+	return nil
 }
 
 // RollbackMigration rolls back a single migration
 func (m *Migrator) RollbackMigration(ctx context.Context, migration *Migration) error {
+	logger := m.logger.WithFields(map[string]interface{}{
+		"migration_version": migration.Version,
+		"migration_name":    migration.Name,
+	})
+
 	if migration.DownSQL == "" {
+		logger.Warn(ctx, "Migration has no down migration, skipping rollback")
 		return errors.Newf(errors.ErrCodeValidation, "Migration %d has no down migration", migration.Version)
 	}
 
-	return m.db.WithTransaction(ctx, func(tx *sql.Tx) error {
+	logger.Info(ctx, "Rolling back migration")
+
+	err := m.db.WithTransaction(ctx, func(tx *sql.Tx) error {
 		// Execute the rollback SQL
 		_, err := tx.ExecContext(ctx, migration.DownSQL)
 		if err != nil {
@@ -204,10 +244,20 @@ func (m *Migrator) RollbackMigration(ctx context.Context, migration *Migration) 
 
 		return nil
 	})
+
+	if err != nil {
+		logger.Error(ctx, "Failed to rollback migration", err)
+		return err
+	}
+
+	logger.Info(ctx, "Migration rolled back successfully")
+	return nil
 }
 
 // MigrateUp applies all pending migrations
 func (m *Migrator) MigrateUp(ctx context.Context, migrations []Migration) error {
+	m.logger.Info(ctx, "Starting migration up process")
+
 	if err := m.Initialize(ctx); err != nil {
 		return err
 	}
@@ -216,6 +266,8 @@ func (m *Migrator) MigrateUp(ctx context.Context, migrations []Migration) error 
 	if err != nil {
 		return err
 	}
+
+	m.logger.WithField("current_version", currentVersion).Info(ctx, "Current database version")
 
 	// Sort migrations by version
 	sort.Slice(migrations, func(i, j int) bool {
@@ -229,6 +281,7 @@ func (m *Migrator) MigrateUp(ctx context.Context, migrations []Migration) error 
 		}
 
 		if err := m.ApplyMigration(ctx, &migration); err != nil {
+			m.logger.WithField("failed_at_version", migration.Version).Error(ctx, "Migration up process failed", err)
 			return errors.Wrapf(err, errors.ErrCodeDatabaseError, "Failed to apply migration %d", migration.Version)
 		}
 
@@ -236,9 +289,9 @@ func (m *Migrator) MigrateUp(ctx context.Context, migrations []Migration) error 
 	}
 
 	if applied == 0 {
-		fmt.Println("No pending migrations to apply")
+		m.logger.Info(ctx, "No pending migrations to apply")
 	} else {
-		fmt.Printf("Applied %d migration(s)\n", applied)
+		m.logger.WithField("applied_count", applied).Info(ctx, "Migration up process completed successfully")
 	}
 
 	return nil
@@ -246,6 +299,8 @@ func (m *Migrator) MigrateUp(ctx context.Context, migrations []Migration) error 
 
 // MigrateDown rolls back migrations to a target version
 func (m *Migrator) MigrateDown(ctx context.Context, targetVersion int, migrations []Migration) error {
+	m.logger.WithField("target_version", targetVersion).Info(ctx, "Starting migration down process")
+
 	appliedMigrations, err := m.GetAppliedMigrations(ctx)
 	if err != nil {
 		return err
@@ -271,12 +326,14 @@ func (m *Migrator) MigrateDown(ctx context.Context, targetVersion int, migration
 		// Find the migration with down SQL
 		migration, exists := migrationMap[appliedMigration.Version]
 		if !exists {
+			m.logger.WithField("missing_version", appliedMigration.Version).Error(ctx, "Migration file not found for rollback", nil)
 			return errors.Newf(errors.ErrCodeValidation, "Migration %d not found in migration files", appliedMigration.Version)
 		}
 
 		migration.DownSQL = migrationMap[appliedMigration.Version].DownSQL
 
 		if err := m.RollbackMigration(ctx, &migration); err != nil {
+			m.logger.WithField("failed_at_version", migration.Version).Error(ctx, "Migration down process failed", err)
 			return errors.Wrapf(err, errors.ErrCodeDatabaseError, "Failed to rollback migration %d", migration.Version)
 		}
 
@@ -284,9 +341,9 @@ func (m *Migrator) MigrateDown(ctx context.Context, targetVersion int, migration
 	}
 
 	if rolledBack == 0 {
-		fmt.Println("No migrations to rollback")
+		m.logger.Info(ctx, "No migrations to rollback")
 	} else {
-		fmt.Printf("Rolled back %d migration(s)\n", rolledBack)
+		m.logger.WithField("rolled_back_count", rolledBack).Info(ctx, "Migration down process completed successfully")
 	}
 
 	return nil

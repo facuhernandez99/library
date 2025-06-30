@@ -125,13 +125,34 @@ func (s *ErrorSanitizer) sanitizeString(input string) string {
 
 	result := input
 
-	// Replace sensitive keywords
+	// First, normalize authentication-related words
+	authPattern := `(?i)\bauthenticat[a-z]*\b`
+	if re, err := regexp.Compile(authPattern); err == nil {
+		result = re.ReplaceAllString(result, "auth")
+	}
+
+	// Then handle sensitive keyword patterns
 	for keyword, replacement := range s.replacements {
-		// Case-insensitive replacement of sensitive keywords
-		pattern := fmt.Sprintf(`(?i)\b%s[^:\s]*:?\s*[^\s,;)}\]]+`, keyword)
-		if re, err := regexp.Compile(pattern); err == nil {
+		// Pattern 1: Match "keyword: value" format
+		pattern1 := fmt.Sprintf(`(?i)\b%s\s*:\s*[^\s,;)}\]]+`, keyword)
+		if re, err := regexp.Compile(pattern1); err == nil {
 			result = re.ReplaceAllString(result, keyword+": "+replacement)
 		}
+
+		// Pattern 2: Match standalone keywords followed by sensitive data (for key/password)
+		if keyword == "password" || keyword == "key" {
+			// Match patterns like "password secret123" or "key sk_test_12345"
+			pattern2 := fmt.Sprintf(`(?i)\b%s\s+[a-zA-Z0-9_\-]+`, keyword)
+			if re, err := regexp.Compile(pattern2); err == nil {
+				result = re.ReplaceAllString(result, keyword+": "+replacement)
+			}
+		}
+	}
+
+	// Special case: Handle "auth WORD" pattern (after normalization)
+	authWordPattern := `(?i)\bauth\s+[a-zA-Z]+`
+	if re, err := regexp.Compile(authWordPattern); err == nil {
+		result = re.ReplaceAllString(result, "auth: [REDACTED]")
 	}
 
 	// Apply regex patterns for production
