@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/facuhernandez99/blog/pkg/logging"
+	"github.com/facuhernandez99/library/pkg/logging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )

@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	apperrors "github.com/facuhernandez99/blog/pkg/errors"
+	apperrors "github.com/facuhernandez99/library/pkg/errors"
 )
 
 // ErrorSanitizer handles sanitization of sensitive information in errors

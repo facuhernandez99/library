@@ -15,12 +15,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/facuhernandez99/blog/pkg/auth"
-	"github.com/facuhernandez99/blog/pkg/config"
-	"github.com/facuhernandez99/blog/pkg/errors"
-	bloghttp "github.com/facuhernandez99/blog/pkg/http"
-	"github.com/facuhernandez99/blog/pkg/logging"
-	"github.com/facuhernandez99/blog/pkg/models"
+	"github.com/facuhernandez99/library/pkg/auth"
+	"github.com/facuhernandez99/library/pkg/config"
+	"github.com/facuhernandez99/library/pkg/errors"
+	libraryhttp "github.com/facuhernandez99/library/pkg/http"
+	"github.com/facuhernandez99/library/pkg/logging"
+	"github.com/facuhernandez99/library/pkg/models"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -262,9 +262,9 @@ func TestRequestLifecycleWithFullMiddlewareStack(t *testing.T) {
 	fmt.Println("\n9. Testing rate limited request lifecycle...")
 
 	// Create rate limiter with very low limit for testing
-	testRateLimiter := bloghttp.NewRateLimiter(2, time.Minute)
+	testRateLimiter := libraryhttp.NewRateLimiter(2, time.Minute)
 	rateLimitRouter := gin.New()
-	rateLimitRouter.Use(bloghttp.RequestIDMiddleware())
+	rateLimitRouter.Use(libraryhttp.RequestIDMiddleware())
 	rateLimitRouter.Use(testRateLimiter.RateLimitMiddleware())
 	rateLimitRouter.GET("/rate-test", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "rate test ok"})
@@ -334,7 +334,7 @@ func setupLifecycleMiddlewareStack(router *gin.Engine, cfg *config.Config, logge
 				"path":       c.Request.URL.Path,
 			})
 		}
-		bloghttp.RequestIDMiddleware()(c)
+		libraryhttp.RequestIDMiddleware()(c)
 	})
 
 	// 2. Security Headers Middleware
@@ -344,11 +344,11 @@ func setupLifecycleMiddlewareStack(router *gin.Engine, cfg *config.Config, logge
 				"headers_applied": []string{"X-Content-Type-Options", "X-Frame-Options", "X-XSS-Protection"},
 			})
 		}
-		bloghttp.SecurityHeadersMiddleware()(c)
+		libraryhttp.SecurityHeadersMiddleware()(c)
 	})
 
 	// 3. CORS Middleware
-	corsConfig := &bloghttp.CORSConfig{
+	corsConfig := &libraryhttp.CORSConfig{
 		AllowOrigins:     []string{"*"}, // Allow all origins for testing
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Request-ID"},
@@ -366,11 +366,11 @@ func setupLifecycleMiddlewareStack(router *gin.Engine, cfg *config.Config, logge
 				"credentials_allowed": corsConfig.AllowCredentials,
 			})
 		}
-		bloghttp.CORSMiddleware(corsConfig)(c)
+		libraryhttp.CORSMiddleware(corsConfig)(c)
 	})
 
 	// 4. Rate Limiting Middleware
-	rateLimiter := bloghttp.NewRateLimiter(100, time.Minute)
+	rateLimiter := libraryhttp.NewRateLimiter(100, time.Minute)
 	router.Use(func(c *gin.Context) {
 		if *tracker != nil {
 			(*tracker).AddStage("RateLimit", "Rate limiting check", map[string]interface{}{
@@ -390,11 +390,11 @@ func setupLifecycleMiddlewareStack(router *gin.Engine, cfg *config.Config, logge
 				"timeout": "30s",
 			})
 		}
-		bloghttp.TimeoutMiddleware(30 * time.Second)(c)
+		libraryhttp.TimeoutMiddleware(30 * time.Second)(c)
 	})
 
 	// 6. Validation Middleware
-	validationConfig := &bloghttp.ValidationConfig{
+	validationConfig := &libraryhttp.ValidationConfig{
 		MaxStringLength:  2000,
 		MaxFileSize:      20 * 1024 * 1024,
 		AllowedMimeTypes: []string{"application/json", "multipart/form-data"},
@@ -408,7 +408,7 @@ func setupLifecycleMiddlewareStack(router *gin.Engine, cfg *config.Config, logge
 				"validation_passed": true,
 			})
 		}
-		bloghttp.ValidationMiddleware(validationConfig)(c)
+		libraryhttp.ValidationMiddleware(validationConfig)(c)
 	})
 
 	// 7. Structured Logging Middleware
@@ -437,7 +437,7 @@ func setupLifecycleMiddlewareStack(router *gin.Engine, cfg *config.Config, logge
 				"recovery_active": true,
 			})
 		}
-		bloghttp.RecoveryMiddleware()(c)
+		libraryhttp.RecoveryMiddleware()(c)
 	})
 }
 
@@ -453,7 +453,7 @@ func setupLifecycleTestEndpoints(router *gin.Engine, cfg *config.Config) {
 		lifecycle.POST("/profile", auth.AuthMiddleware(cfg.JWTSecret), func(c *gin.Context) {
 			userID, _ := auth.GetUserID(c)
 			username, _ := auth.GetUsername(c)
-			requestID := bloghttp.GetRequestID(c)
+			requestID := libraryhttp.GetRequestID(c)
 
 			// Parse request body
 			var requestData map[string]interface{}
@@ -472,7 +472,7 @@ func setupLifecycleTestEndpoints(router *gin.Engine, cfg *config.Config) {
 			}).Info(c.Request.Context(), "Lifecycle profile endpoint accessed successfully")
 
 			// Return comprehensive response
-			bloghttp.RespondWithSuccess(c, gin.H{
+			libraryhttp.RespondWithSuccess(c, gin.H{
 				"user_profile": gin.H{
 					"user_id":      userID,
 					"username":     username,
@@ -494,15 +494,15 @@ func setupLifecycleTestEndpoints(router *gin.Engine, cfg *config.Config) {
 
 		// Panic endpoint for recovery testing
 		lifecycle.GET("/panic", func(c *gin.Context) {
-			requestID := bloghttp.GetRequestID(c)
+			requestID := libraryhttp.GetRequestID(c)
 			logging.GetDefault().WithField("request_id", requestID).Info(c.Request.Context(), "About to trigger panic for recovery test")
 			panic("Test panic for lifecycle recovery testing")
 		})
 
 		// Public endpoint for basic testing
 		lifecycle.GET("/health", func(c *gin.Context) {
-			requestID := bloghttp.GetRequestID(c)
-			bloghttp.RespondWithSuccess(c, gin.H{
+			requestID := libraryhttp.GetRequestID(c)
+			libraryhttp.RespondWithSuccess(c, gin.H{
 				"status":     "healthy",
 				"request_id": requestID,
 				"timestamp":  time.Now().Unix(),

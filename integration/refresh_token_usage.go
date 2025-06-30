@@ -8,8 +8,8 @@ import (
 	"log"
 	"time"
 
-	"github.com/facuhernandez99/blog/pkg/auth"
-	"github.com/facuhernandez99/blog/pkg/models"
+	"github.com/facuhernandez99/library/pkg/auth"
+	"github.com/facuhernandez99/library/pkg/models"
 )
 
 func main() {
@@ -21,7 +21,7 @@ func main() {
 		Username: "john_doe",
 	}
 
-	secret := "super-secret-jwt-key-for-blog-service"
+	secret := "super-secret-jwt-key-for-library-service"
 
 	// 1. Generate a token pair (access + refresh tokens)
 	fmt.Println("1. Generating token pair...")

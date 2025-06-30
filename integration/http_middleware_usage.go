@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/facuhernandez99/blog/pkg/errors"
-	bloghttp "github.com/facuhernandez99/blog/pkg/http"
+	"github.com/facuhernandez99/library/pkg/errors"
+	libraryhttp "github.com/facuhernandez99/library/pkg/http"
 	"github.com/gin-gonic/gin"
 )
 
@@ -47,13 +47,13 @@ func main() {
 // setupMiddleware configures all HTTP middleware
 func setupMiddleware(router *gin.Engine) {
 	// 1. Request ID middleware (should be first for correlation)
-	router.Use(bloghttp.RequestIDMiddleware())
+	router.Use(libraryhttp.RequestIDMiddleware())
 
 	// 2. Security headers middleware
-	router.Use(bloghttp.SecurityHeadersMiddleware())
+	router.Use(libraryhttp.SecurityHeadersMiddleware())
 
 	// 3. CORS middleware with custom configuration
-	corsConfig := &bloghttp.CORSConfig{
+	corsConfig := &libraryhttp.CORSConfig{
 		AllowOrigins: []string{
 			"https://localhost:3000",
 			"https://app.example.com",
@@ -76,17 +76,17 @@ func setupMiddleware(router *gin.Engine) {
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}
-	router.Use(bloghttp.CORSMiddleware(corsConfig))
+	router.Use(libraryhttp.CORSMiddleware(corsConfig))
 
 	// 4. Rate limiting middleware (100 requests per minute per IP)
-	rateLimiter := bloghttp.NewRateLimiter(100, time.Minute)
+	rateLimiter := libraryhttp.NewRateLimiter(100, time.Minute)
 	router.Use(rateLimiter.RateLimitMiddleware())
 
 	// 5. Request timeout middleware (30 seconds)
-	router.Use(bloghttp.TimeoutMiddleware(30 * time.Second))
+	router.Use(libraryhttp.TimeoutMiddleware(30 * time.Second))
 
 	// 6. Validation middleware with custom config
-	validationConfig := &bloghttp.ValidationConfig{
+	validationConfig := &libraryhttp.ValidationConfig{
 		MaxStringLength: 2000,
 		MaxFileSize:     20 * 1024 * 1024, // 20MB
 		AllowedMimeTypes: []string{
@@ -95,13 +95,13 @@ func setupMiddleware(router *gin.Engine) {
 			"application/x-www-form-urlencoded",
 		},
 	}
-	router.Use(bloghttp.ValidationMiddleware(validationConfig))
+	router.Use(libraryhttp.ValidationMiddleware(validationConfig))
 
 	// 7. Logging middleware (after request ID for correlation)
-	router.Use(bloghttp.LoggingMiddleware())
+	router.Use(libraryhttp.LoggingMiddleware())
 
 	// 8. Recovery middleware (should be last in the chain)
-	router.Use(bloghttp.RecoveryMiddleware())
+	router.Use(libraryhttp.RecoveryMiddleware())
 }
 
 // setupRoutes configures application routes
@@ -140,9 +140,9 @@ func setupRoutes(router *gin.Engine) {
 
 // healthCheckHandler handles health check requests
 func healthCheckHandler(c *gin.Context) {
-	bloghttp.RespondWithSuccess(c, gin.H{
+	libraryhttp.RespondWithSuccess(c, gin.H{
 		"status":     "healthy",
-		"request_id": bloghttp.GetRequestID(c),
+		"request_id": libraryhttp.GetRequestID(c),
 		"timestamp":  time.Now().UTC(),
 	})
 }
@@ -224,7 +224,7 @@ func getUserHandler(c *gin.Context) {
 		Phone:    "+1234567890",
 	}
 
-	bloghttp.RespondWithSuccess(c, user)
+	libraryhttp.RespondWithSuccess(c, user)
 }
 
 // updateUserHandler demonstrates partial update validation
@@ -280,7 +280,7 @@ func updateUserHandler(c *gin.Context) {
 		Email:    "john.updated@example.com",
 	}
 
-	bloghttp.RespondWithSuccess(c, user)
+	libraryhttp.RespondWithSuccess(c, user)
 }
 
 // deleteUserHandler demonstrates simple parameter validation
@@ -323,7 +323,7 @@ func loginHandler(c *gin.Context) {
 	req.Email = strings.TrimSpace(req.Email)
 
 	// Business logic simulation
-	bloghttp.RespondWithSuccess(c, gin.H{
+	libraryhttp.RespondWithSuccess(c, gin.H{
 		"token":      "jwt-token-here",
 		"expires_at": time.Now().Add(24 * time.Hour),
 		"user": UserResponse{
@@ -337,7 +337,7 @@ func loginHandler(c *gin.Context) {
 // logoutHandler demonstrates simple authenticated endpoints
 func logoutHandler(c *gin.Context) {
 	// In a real application, you would invalidate the token here
-	bloghttp.RespondWithSuccess(c, gin.H{
+	libraryhttp.RespondWithSuccess(c, gin.H{
 		"message": "Successfully logged out",
 	})
 }
@@ -360,7 +360,7 @@ func refreshTokenHandler(c *gin.Context) {
 	}
 
 	// Business logic simulation
-	bloghttp.RespondWithSuccess(c, gin.H{
+	libraryhttp.RespondWithSuccess(c, gin.H{
 		"access_token":  "new-jwt-token",
 		"refresh_token": "new-refresh-token",
 		"expires_at":    time.Now().Add(24 * time.Hour),
@@ -446,7 +446,7 @@ func getPostBySlugHandler(c *gin.Context) {
 		"content": "This is the post content...",
 	}
 
-	bloghttp.RespondWithSuccess(c, post)
+	libraryhttp.RespondWithSuccess(c, post)
 }
 
 // Helper function for slug validation

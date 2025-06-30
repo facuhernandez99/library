@@ -11,7 +11,7 @@ services:
       PORT: "8080"
       DB_DSN: "postgres://postgres:postgres@user-db:5432/users?sslmode=disable"
     networks:
-      - blognet
+      - librarynet
 
   user-db:
     image: postgres:15-alpine
@@ -25,10 +25,10 @@ services:
     volumes:
       - user_db_data:/var/lib/postgresql/data
     networks:
-      - blognet
+      - librarynet
 
 networks:
-  blognet:
+  librarynet:
     driver: bridge
 
 volumes:

@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/facuhernandez99/blog/pkg/auth"
-	"github.com/facuhernandez99/blog/pkg/errors"
-	"github.com/facuhernandez99/blog/pkg/logging"
-	"github.com/facuhernandez99/blog/pkg/models"
+	"github.com/facuhernandez99/library/pkg/auth"
+	"github.com/facuhernandez99/library/pkg/errors"
+	"github.com/facuhernandez99/library/pkg/logging"
+	"github.com/facuhernandez99/library/pkg/models"
 )
 
 // Client represents an HTTP client for inter-service communication
@@ -83,7 +83,7 @@ func NewClient(config *ClientConfig) *Client {
 	defaultHeaders := map[string]string{
 		"Content-Type": "application/json",
 		"Accept":       "application/json",
-		"User-Agent":   "blog-microservice/1.0",
+		"User-Agent":   "library-microservice/1.0",
 	}
 
 	// Merge custom headers

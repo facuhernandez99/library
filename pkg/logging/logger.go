@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/facuhernandez99/blog/pkg/errors"
+	"github.com/facuhernandez99/library/pkg/errors"
 )
 
 // LogLevel represents the severity level of a log entry
@@ -81,7 +81,7 @@ func DefaultConfig() *Config {
 	return &Config{
 		Level:      LevelInfo,
 		Output:     os.Stdout,
-		Service:    "blog-service",
+		Service:    "library-service",
 		Version:    "1.0.0",
 		Production: false,
 	}

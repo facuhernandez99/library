@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	apperrors "github.com/facuhernandez99/blog/pkg/errors"
+	apperrors "github.com/facuhernandez99/library/pkg/errors"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,7 +39,7 @@ func TestLogLevel_String(t *testing.T) {
 func TestDefaultConfig(t *testing.T) {
 	config := DefaultConfig()
 	assert.Equal(t, LevelInfo, config.Level)
-	assert.Equal(t, "blog-service", config.Service)
+	assert.Equal(t, "library-service", config.Service)
 	assert.Equal(t, "1.0.0", config.Version)
 	assert.False(t, config.Production)
 	assert.NotNil(t, config.Output)
@@ -66,7 +66,7 @@ func TestNewLogger(t *testing.T) {
 func TestNewLogger_NilConfig(t *testing.T) {
 	logger := NewLogger(nil)
 	assert.Equal(t, LevelInfo, logger.GetLevel())
-	assert.Equal(t, "blog-service", logger.service)
+	assert.Equal(t, "library-service", logger.service)
 }
 
 func TestLogger_SetLevel(t *testing.T) {

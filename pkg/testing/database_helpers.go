@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/facuhernandez99/blog/pkg/database"
-	"github.com/facuhernandez99/blog/pkg/models"
+	"github.com/facuhernandez99/library/pkg/database"
+	"github.com/facuhernandez99/library/pkg/models"
 	_ "github.com/lib/pq" // PostgreSQL driver
 	"github.com/stretchr/testify/require"
 )
@@ -349,7 +349,7 @@ func getTestDatabaseConfig() *database.Config {
 	if database := os.Getenv("TEST_DB_DATABASE"); database != "" {
 		config.Database = database
 	} else {
-		config.Database = "blog_test"
+		config.Database = "library_test"
 	}
 
 	// Set test-specific connection settings

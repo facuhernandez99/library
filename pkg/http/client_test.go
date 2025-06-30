@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/facuhernandez99/blog/pkg/auth"
-	"github.com/facuhernandez99/blog/pkg/logging"
-	"github.com/facuhernandez99/blog/pkg/models"
+	"github.com/facuhernandez99/library/pkg/auth"
+	"github.com/facuhernandez99/library/pkg/logging"
+	"github.com/facuhernandez99/library/pkg/models"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -40,7 +40,7 @@ func TestNewClient(t *testing.T) {
 			expectedHeaders: map[string]string{
 				"Content-Type": "application/json",
 				"Accept":       "application/json",
-				"User-Agent":   "blog-microservice/1.0",
+				"User-Agent":   "library-microservice/1.0",
 			},
 		},
 		{
@@ -59,7 +59,7 @@ func TestNewClient(t *testing.T) {
 			expectedHeaders: map[string]string{
 				"Content-Type":    "application/json",
 				"Accept":          "application/json",
-				"User-Agent":      "blog-microservice/1.0",
+				"User-Agent":      "library-microservice/1.0",
 				"X-Custom-Header": "test-value",
 			},
 		},
@@ -142,8 +142,8 @@ func TestClient_HTTPMethods(t *testing.T) {
 		}
 
 		// Validate User-Agent
-		if r.Header.Get("User-Agent") != "blog-microservice/1.0" {
-			t.Errorf("Expected User-Agent blog-microservice/1.0, got %s", r.Header.Get("User-Agent"))
+		if r.Header.Get("User-Agent") != "library-microservice/1.0" {
+			t.Errorf("Expected User-Agent library-microservice/1.0, got %s", r.Header.Get("User-Agent"))
 		}
 
 		w.Header().Set("Content-Type", "application/json")

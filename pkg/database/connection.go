@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/facuhernandez99/blog/pkg/config"
-	"github.com/facuhernandez99/blog/pkg/errors"
+	"github.com/facuhernandez99/library/pkg/config"
+	"github.com/facuhernandez99/library/pkg/errors"
 	_ "github.com/lib/pq" // PostgreSQL driver
 )
 
@@ -32,7 +32,7 @@ func DefaultConfig() *Config {
 		Port:            5432,
 		Username:        "postgres",
 		Password:        "postgres",
-		Database:        "blog",
+		Database:        "library",
 		SSLMode:         "disable",
 		MaxOpenConns:    25,
 		MaxIdleConns:    25,

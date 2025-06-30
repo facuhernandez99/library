@@ -1,4 +1,4 @@
-module github.com/facuhernandez99/blog
+module github.com/facuhernandez99/library
 
 go 1.23.0
 

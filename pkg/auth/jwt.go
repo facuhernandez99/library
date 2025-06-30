@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/facuhernandez99/blog/pkg/models"
+	"github.com/facuhernandez99/library/pkg/models"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -73,7 +73,7 @@ func GenerateJWT(user *models.User, secret string, expirationHours int) (*models
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			ExpiresAt: jwt.NewNumericDate(expiresAt),
 			NotBefore: jwt.NewNumericDate(time.Now()),
-			Issuer:    "blog-microservice",
+			Issuer:    "library-microservice",
 		},
 	}
 
@@ -193,7 +193,7 @@ func GenerateRefreshToken(user *models.User, secret string) (string, error) {
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			ExpiresAt: jwt.NewNumericDate(expiresAt),
 			NotBefore: jwt.NewNumericDate(time.Now()),
-			Issuer:    "blog-microservice-refresh",
+			Issuer:    "library-microservice-refresh",
 		},
 	}
 

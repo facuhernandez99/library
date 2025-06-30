@@ -8,8 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/facuhernandez99/blog/pkg/logging"
-	"github.com/facuhernandez99/blog/pkg/models"
+	"github.com/facuhernandez99/library/pkg/logging"
+	"github.com/facuhernandez99/library/pkg/models"
 	"github.com/gin-gonic/gin"
 )
 

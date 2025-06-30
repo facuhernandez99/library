@@ -267,7 +267,7 @@ func TestHealthCheck_JSONMarshalling(t *testing.T) {
 				Status:    "healthy",
 				Timestamp: timestamp,
 				Version:   "1.0.0",
-				Service:   "blog-service",
+				Service:   "library-service",
 			},
 		},
 		{
@@ -276,7 +276,7 @@ func TestHealthCheck_JSONMarshalling(t *testing.T) {
 				Status:    "unhealthy",
 				Timestamp: timestamp,
 				Version:   "",
-				Service:   "blog-service",
+				Service:   "library-service",
 			},
 		},
 		{

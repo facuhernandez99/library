@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/facuhernandez99/blog/pkg/config"
-	"github.com/facuhernandez99/blog/pkg/logging"
+	"github.com/facuhernandez99/library/pkg/config"
+	"github.com/facuhernandez99/library/pkg/logging"
 	"github.com/redis/go-redis/v9"
 )
 

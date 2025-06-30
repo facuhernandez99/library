@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/facuhernandez99/blog/pkg/config"
-	"github.com/facuhernandez99/blog/pkg/errors"
+	"github.com/facuhernandez99/library/pkg/config"
+	"github.com/facuhernandez99/library/pkg/errors"
 )
 
 // Mock driver for testing
@@ -130,8 +130,8 @@ func TestConfig(t *testing.T) {
 			t.Errorf("Expected default password 'postgres', got %s", config.Password)
 		}
 
-		if config.Database != "blog" {
-			t.Errorf("Expected default database 'blog', got %s", config.Database)
+		if config.Database != "library" {
+			t.Errorf("Expected default database 'library', got %s", config.Database)
 		}
 
 		if config.SSLMode != "disable" {

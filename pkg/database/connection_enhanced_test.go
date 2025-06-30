@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/facuhernandez99/blog/pkg/config"
-	"github.com/facuhernandez99/blog/pkg/errors"
+	"github.com/facuhernandez99/library/pkg/config"
+	"github.com/facuhernandez99/library/pkg/errors"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -467,7 +467,7 @@ func TestConfig_Methods(t *testing.T) {
 		assert.Equal(t, 5432, config.Port)
 		assert.Equal(t, "postgres", config.Username)
 		assert.Equal(t, "postgres", config.Password)
-		assert.Equal(t, "blog", config.Database)
+		assert.Equal(t, "library", config.Database)
 		assert.Equal(t, "disable", config.SSLMode)
 		assert.Equal(t, 25, config.MaxOpenConns)
 		assert.Equal(t, 25, config.MaxIdleConns)

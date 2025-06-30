@@ -8,7 +8,7 @@ import (
 	"errors"
 	"os"
 
-	"github.com/facuhernandez99/blog/pkg/logging"
+	"github.com/facuhernandez99/library/pkg/logging"
 	"github.com/gin-gonic/gin"
 )
 
@@ -58,7 +58,7 @@ func productionLoggerExample() {
 	config := &logging.Config{
 		Level:      logging.LevelInfo,
 		Output:     os.Stdout,
-		Service:    "blog-service",
+		Service:    "library-service",
 		Version:    "1.0.0",
 		Production: true, // Enable production mode for sanitization
 	}

@@ -75,7 +75,7 @@ setup_database() {
     echo "🔧 Setting up test database..."
     
     # Create additional test database if needed
-    docker exec $CONTAINER_NAME psql -U $DB_USER -d $DB_NAME -c "CREATE DATABASE blog_integration_test;" 2>/dev/null || true
+    docker exec $CONTAINER_NAME psql -U $DB_USER -d $DB_NAME -c "CREATE DATABASE library_integration_test;" 2>/dev/null || true
     
     echo "✅ Database setup completed"
 }
@@ -85,7 +85,7 @@ set_env_vars() {
     echo "🌍 Setting environment variables..."
     
     export DATABASE_URL="postgres://$DB_USER:$DB_PASSWORD@localhost:$DB_PORT/$DB_NAME?sslmode=disable"
-    export TEST_DATABASE_URL="postgres://$DB_USER:$DB_PASSWORD@localhost:$DB_PORT/blog_integration_test?sslmode=disable"
+    export TEST_DATABASE_URL="postgres://$DB_USER:$DB_PASSWORD@localhost:$DB_PORT/library_integration_test?sslmode=disable"
     export POSTGRES_HOST="localhost"
     export POSTGRES_PORT="$DB_PORT"
     export POSTGRES_USER="$DB_USER"

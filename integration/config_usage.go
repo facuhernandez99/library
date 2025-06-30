@@ -8,14 +8,14 @@ import (
 	"log"
 	"time"
 
-	"github.com/facuhernandez99/blog/pkg/config"
-	"github.com/facuhernandez99/blog/pkg/http"
+	"github.com/facuhernandez99/library/pkg/config"
+	"github.com/facuhernandez99/library/pkg/http"
 )
 
 // Example demonstrating how to use the config package
 // Run with: go run examples/config_usage.go
 func main() {
-	fmt.Println("=== Blog Service Configuration Example ===\n")
+	fmt.Println("=== Library Service Configuration Example ===\n")
 
 	// Load configuration
 	cfg, err := config.Load()

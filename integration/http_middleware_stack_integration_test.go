@@ -14,11 +14,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/facuhernandez99/blog/pkg/auth"
-	"github.com/facuhernandez99/blog/pkg/config"
-	bloghttp "github.com/facuhernandez99/blog/pkg/http"
-	"github.com/facuhernandez99/blog/pkg/logging"
-	"github.com/facuhernandez99/blog/pkg/models"
+	"github.com/facuhernandez99/library/pkg/auth"
+	"github.com/facuhernandez99/library/pkg/config"
+	libraryhttp "github.com/facuhernandez99/library/pkg/http"
+	"github.com/facuhernandez99/library/pkg/logging"
+	"github.com/facuhernandez99/library/pkg/models"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -142,10 +142,10 @@ func TestHTTPMiddlewareStackIntegration(t *testing.T) {
 
 	// Create a new router with strict rate limiting for testing
 	strictRouter := gin.New()
-	strictRouter.Use(bloghttp.RequestIDMiddleware())
+	strictRouter.Use(libraryhttp.RequestIDMiddleware())
 
 	// Very restrictive rate limiter for testing
-	rateLimiter := bloghttp.NewRateLimiter(2, time.Minute)
+	rateLimiter := libraryhttp.NewRateLimiter(2, time.Minute)
 	strictRouter.Use(rateLimiter.RateLimitMiddleware())
 
 	strictRouter.GET("/test", func(c *gin.Context) {
@@ -284,13 +284,13 @@ func TestHTTPMiddlewareStackIntegration(t *testing.T) {
 // setupCompleteMiddlewareStack configures the complete middleware stack in proper order
 func setupCompleteMiddlewareStack(router *gin.Engine, cfg *config.Config, logger *logging.Logger) {
 	// 1. Request ID middleware (first, for correlation across all middleware)
-	router.Use(bloghttp.RequestIDMiddleware())
+	router.Use(libraryhttp.RequestIDMiddleware())
 
 	// 2. Security headers middleware (early for security)
-	router.Use(bloghttp.SecurityHeadersMiddleware())
+	router.Use(libraryhttp.SecurityHeadersMiddleware())
 
 	// 3. CORS middleware (before authentication) - permissive for testing
-	corsConfig := &bloghttp.CORSConfig{
+	corsConfig := &libraryhttp.CORSConfig{
 		AllowOrigins:     []string{"*"}, // Permissive for testing
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Requested-With", "X-Request-ID"},
@@ -298,22 +298,22 @@ func setupCompleteMiddlewareStack(router *gin.Engine, cfg *config.Config, logger
 		AllowCredentials: false, // Must be false when AllowOrigins is "*"
 		MaxAge:           12 * time.Hour,
 	}
-	router.Use(bloghttp.CORSMiddleware(corsConfig))
+	router.Use(libraryhttp.CORSMiddleware(corsConfig))
 
 	// 4. Rate limiting middleware
-	rateLimiter := bloghttp.NewRateLimiter(100, time.Minute)
+	rateLimiter := libraryhttp.NewRateLimiter(100, time.Minute)
 	router.Use(rateLimiter.RateLimitMiddleware())
 
 	// 5. Request timeout middleware
-	router.Use(bloghttp.TimeoutMiddleware(30 * time.Second))
+	router.Use(libraryhttp.TimeoutMiddleware(30 * time.Second))
 
 	// 6. Validation middleware
-	validationConfig := &bloghttp.ValidationConfig{
+	validationConfig := &libraryhttp.ValidationConfig{
 		MaxStringLength:  2000,
 		MaxFileSize:      20 * 1024 * 1024, // 20MB
 		AllowedMimeTypes: []string{"application/json", "multipart/form-data", "application/x-www-form-urlencoded"},
 	}
-	router.Use(bloghttp.ValidationMiddleware(validationConfig))
+	router.Use(libraryhttp.ValidationMiddleware(validationConfig))
 
 	// 7. Structured logging middleware (after request ID, before auth for context)
 	loggingConfig := &logging.HTTPLoggingConfig{
@@ -325,16 +325,16 @@ func setupCompleteMiddlewareStack(router *gin.Engine, cfg *config.Config, logger
 	router.Use(logging.HTTPLoggingMiddleware(loggingConfig))
 
 	// 8. Recovery middleware (should be last in the chain)
-	router.Use(bloghttp.RecoveryMiddleware())
+	router.Use(libraryhttp.RecoveryMiddleware())
 }
 
 // setupTestEndpoints creates test endpoints for middleware integration testing
 func setupTestEndpoints(router *gin.Engine, cfg *config.Config) {
 	// Health check endpoint (public)
 	router.GET("/health", func(c *gin.Context) {
-		bloghttp.RespondWithSuccess(c, gin.H{
+		libraryhttp.RespondWithSuccess(c, gin.H{
 			"status":     "healthy",
-			"request_id": bloghttp.GetRequestID(c),
+			"request_id": libraryhttp.GetRequestID(c),
 			"timestamp":  time.Now().UTC(),
 		})
 	})
@@ -346,16 +346,16 @@ func setupTestEndpoints(router *gin.Engine, cfg *config.Config) {
 	public := v1.Group("/public")
 	{
 		public.GET("/posts", func(c *gin.Context) {
-			bloghttp.RespondWithSuccess(c, gin.H{
+			libraryhttp.RespondWithSuccess(c, gin.H{
 				"posts":      []string{"post1", "post2"},
-				"request_id": bloghttp.GetRequestID(c),
+				"request_id": libraryhttp.GetRequestID(c),
 			})
 		})
 
 		public.POST("/posts", func(c *gin.Context) {
-			bloghttp.RespondWithCreated(c, gin.H{
+			libraryhttp.RespondWithCreated(c, gin.H{
 				"message":    "Post created",
-				"request_id": bloghttp.GetRequestID(c),
+				"request_id": libraryhttp.GetRequestID(c),
 			})
 		})
 	}
@@ -372,14 +372,14 @@ func setupTestEndpoints(router *gin.Engine, cfg *config.Config) {
 				"user_id":    userID,
 				"username":   username,
 				"endpoint":   "profile",
-				"request_id": bloghttp.GetRequestID(c),
+				"request_id": libraryhttp.GetRequestID(c),
 			}).Info(c.Request.Context(), "Protected profile endpoint accessed")
 
-			bloghttp.RespondWithSuccess(c, gin.H{
+			libraryhttp.RespondWithSuccess(c, gin.H{
 				"user_id":    userID,
 				"username":   username,
 				"message":    "Profile data",
-				"request_id": bloghttp.GetRequestID(c),
+				"request_id": libraryhttp.GetRequestID(c),
 			})
 		})
 	}

@@ -7,8 +7,8 @@ import (
 	"testing/fstest"
 	"time"
 
-	"github.com/facuhernandez99/blog/pkg/errors"
-	"github.com/facuhernandez99/blog/pkg/logging"
+	"github.com/facuhernandez99/library/pkg/errors"
+	"github.com/facuhernandez99/library/pkg/logging"
 )
 
 func TestMigratorInitialization(t *testing.T) {

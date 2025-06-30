@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	apperrors "github.com/facuhernandez99/blog/pkg/errors"
+	apperrors "github.com/facuhernandez99/library/pkg/errors"
 	"github.com/stretchr/testify/assert"
 )
 

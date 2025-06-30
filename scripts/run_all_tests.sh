@@ -5,7 +5,7 @@
 
 set -e
 
-echo "🧪 Blog Project - Master Test Runner"
+echo "🧪 Library Project - Master Test Runner"
 echo "===================================="
 
 # Configuration
@@ -282,7 +282,7 @@ main() {
 
 # Show help
 show_help() {
-    echo "Blog Project Master Test Runner"
+    echo "Library Project Master Test Runner"
     echo ""
     echo "Usage: $0 [options]"
     echo ""

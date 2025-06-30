@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/facuhernandez99/blog/pkg/models"
+	"github.com/facuhernandez99/library/pkg/models"
 )
 
 func TestMemoryTokenStorage(t *testing.T) {

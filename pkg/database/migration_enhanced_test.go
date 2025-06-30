@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/facuhernandez99/blog/pkg/errors"
-	"github.com/facuhernandez99/blog/pkg/logging"
+	"github.com/facuhernandez99/library/pkg/errors"
+	"github.com/facuhernandez99/library/pkg/logging"
 	"github.com/stretchr/testify/assert"
 )
 

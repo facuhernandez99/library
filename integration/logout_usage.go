@@ -8,8 +8,8 @@ import (
 	"log"
 	"time"
 
-	"github.com/facuhernandez99/blog/pkg/auth"
-	"github.com/facuhernandez99/blog/pkg/models"
+	"github.com/facuhernandez99/library/pkg/auth"
+	"github.com/facuhernandez99/library/pkg/models"
 )
 
 func main() {
@@ -21,7 +21,7 @@ func main() {
 		Username: "jane_doe",
 	}
 
-	secret := "super-secret-jwt-key-for-blog-service"
+	secret := "super-secret-jwt-key-for-library-service"
 
 	// 1. Setup token storage (using memory storage)
 	fmt.Println("1. Setting up token storage...")

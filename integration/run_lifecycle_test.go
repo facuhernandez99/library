@@ -13,12 +13,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/facuhernandez99/blog/pkg/auth"
-	"github.com/facuhernandez99/blog/pkg/config"
-	"github.com/facuhernandez99/blog/pkg/errors"
-	bloghttp "github.com/facuhernandez99/blog/pkg/http"
-	"github.com/facuhernandez99/blog/pkg/logging"
-	"github.com/facuhernandez99/blog/pkg/models"
+	"github.com/facuhernandez99/library/pkg/auth"
+	"github.com/facuhernandez99/library/pkg/config"
+	"github.com/facuhernandez99/library/pkg/errors"
+	libraryhttp "github.com/facuhernandez99/library/pkg/http"
+	"github.com/facuhernandez99/library/pkg/logging"
+	"github.com/facuhernandez99/library/pkg/models"
 	"github.com/gin-gonic/gin"
 )
 
@@ -91,10 +91,10 @@ func main() {
 	router := gin.New()
 
 	// Add middleware stack
-	router.Use(bloghttp.RequestIDMiddleware())
-	router.Use(bloghttp.SecurityHeadersMiddleware())
+	router.Use(libraryhttp.RequestIDMiddleware())
+	router.Use(libraryhttp.SecurityHeadersMiddleware())
 
-	corsConfig := &bloghttp.CORSConfig{
+	corsConfig := &libraryhttp.CORSConfig{
 		AllowOrigins:     []string{"*"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Request-ID"},
@@ -102,9 +102,9 @@ func main() {
 		AllowCredentials: false,
 		MaxAge:           12 * time.Hour,
 	}
-	router.Use(bloghttp.CORSMiddleware(corsConfig))
+	router.Use(libraryhttp.CORSMiddleware(corsConfig))
 
-	rateLimiter := bloghttp.NewRateLimiter(100, time.Minute)
+	rateLimiter := libraryhttp.NewRateLimiter(100, time.Minute)
 	router.Use(rateLimiter.RateLimitMiddleware())
 
 	loggingConfig := &logging.HTTPLoggingConfig{
@@ -114,7 +114,7 @@ func main() {
 		SanitizeHeaders: true,
 	}
 	router.Use(logging.HTTPLoggingMiddleware(loggingConfig))
-	router.Use(bloghttp.RecoveryMiddleware())
+	router.Use(libraryhttp.RecoveryMiddleware())
 
 	fmt.Printf("   ✅ Complete middleware stack configured\n")
 
@@ -127,7 +127,7 @@ func main() {
 	lifecycle.POST("/profile", auth.AuthMiddleware(cfg.JWTSecret), func(c *gin.Context) {
 		userID, _ := auth.GetUserID(c)
 		username, _ := auth.GetUsername(c)
-		requestID := bloghttp.GetRequestID(c)
+		requestID := libraryhttp.GetRequestID(c)
 
 		var requestData map[string]interface{}
 		if err := c.ShouldBindJSON(&requestData); err != nil {
@@ -142,7 +142,7 @@ func main() {
 			"endpoint":   "/lifecycle/profile",
 		}).Info(c.Request.Context(), "Lifecycle profile endpoint accessed successfully")
 
-		bloghttp.RespondWithSuccess(c, gin.H{
+		libraryhttp.RespondWithSuccess(c, gin.H{
 			"user_profile": gin.H{
 				"user_id":      userID,
 				"username":     username,
