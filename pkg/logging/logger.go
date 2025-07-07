@@ -93,9 +93,15 @@ func NewLogger(config *Config) *Logger {
 		config = DefaultConfig()
 	}
 
+	// Ensure output is not nil, default to os.Stdout
+	output := config.Output
+	if output == nil {
+		output = os.Stdout
+	}
+
 	return &Logger{
 		level:      config.Level,
-		output:     config.Output,
+		output:     output,
 		service:    config.Service,
 		version:    config.Version,
 		production: config.Production,
